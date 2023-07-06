@@ -1,0 +1,113 @@
+app_name: CallAnalysisStackDev
+sqs:
+  audio_transcribe_queue:
+    visibility_timeout: 300
+s3:
+  sedric-audio-analysis-service:
+    public_read_enabled: True
+dynamo:
+  sedric_analysis_requests:
+    partition_key: "request_id"
+    read_capacity: 2
+    write_capacity: 2
+api_gateways:
+  sedric_api:
+    description: "Api for submitting audio analysis requests and retrieving results."
+    path: "/api"
+    resources:
+      transcripts_api:
+        path: "{proxy+}"
+        methods:
+          - GET
+          - POST
+        function: "transcripts_api"
+lambda:
+  layers:
+    common:
+      path: "{PROJECT_ROOT}/src/layers/common"
+    aws_lambda_powertools:
+      arn: "arn:aws:lambda:us-east-1:017000801446:layer:AWSLambdaPowertoolsPythonV2-Arm64:37"
+  functions:
+    transcripts_api:
+      path: "{PROJECT_ROOT}/src/functions/transcripts_api"
+      timeout: 300
+      handler: "lambda_handler.lambda_handler"
+      layers: ["common", "aws_lambda_powertools"]
+      env_vars:
+        dynamo:
+          TRANSCRIPTS_TABLE: "sedric_analysis_requests"
+      policies:
+        dynamo:
+          sedric_analysis_requests:
+            ALLOW:
+              [
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem",
+              ]
+
+    process_audio:
+      path: "{PROJECT_ROOT}/src/functions/process_audio"
+      timeout: 300
+      handler: "lambda_handler.lambda_handler"
+      layers: ["common", "aws_lambda_powertools"]
+      triggers:
+        queueTranscribeAudio:
+          type: sqs
+          ref: "audio_transcribe_queue"
+      env_vars:
+        dynamo:
+          TRANSCRIPTS_TABLE: "sedric_analysis_requests"
+      policies:
+        dynamo:
+          sedric_analysis_requests:
+            ALLOW:
+              [
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem",
+              ]
+    analyse_transcript:
+      path: "{PROJECT_ROOT}/src/functions/analyse_transcript"
+      timeout: 300
+      handler: "lambda_handler.lambda_handler"
+      layers: ["common", "aws_lambda_powertools"]
+      triggers:
+        transcript_pushed:
+          type: s3
+          event: "put"
+          ref: "sedric-audio-analysis-service"
+          prefix: "transcripts"
+      env_vars:
+        dynamo:
+          TRANSCRIPTS_TABLE: "sedric_analysis_requests"
+      policies:
+        dynamo:
+          sedric_analysis_requests:
+            ALLOW:
+              [
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem",
+              ]
