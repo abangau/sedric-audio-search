@@ -15,6 +15,6 @@ class SQSService(object):
         :type queue_url: str
         """
         return self.sqs.send_message(
-            QueueURL=queue_url,
+            QueueUrl=queue_url,
             MessageBody=json.dumps(message)
         )

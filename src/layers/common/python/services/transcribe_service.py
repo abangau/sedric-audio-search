@@ -1,6 +1,6 @@
 import boto3
 
-from layers.common.models.transcript import Transcript
+from models.transcript import Transcript
 
 
 class TranscribeService(object):
@@ -29,7 +29,7 @@ class TranscribeService(object):
             'Media': {'MediaFileUri': f's3://{input_bucket}/{transcript.audio_file_path}'},
             'MediaFormat': transcript.file_type.value,
             'OutputKey': transcript.transcript_file_path,
-            'OutputBucket': output_bucket,
+            'OutputBucketName': output_bucket,
             'LanguageCode': 'en-US'
         }
         response = self.transcribe_client.start_transcription_job(**job_args)

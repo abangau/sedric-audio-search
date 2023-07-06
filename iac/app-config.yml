@@ -36,6 +36,8 @@ lambda:
       env_vars:
         dynamo:
           TRANSCRIPTS_TABLE: "sedric_analysis_requests"
+        sqs:
+          AUDIO_TRANSCRIBE_QUEUE_URL: "audio_transcribe_queue"
       policies:
         dynamo:
           sedric_analysis_requests:
@@ -52,6 +54,9 @@ lambda:
                 "dynamodb:Query",
                 "dynamodb:UpdateItem",
               ]
+        sqs:
+          audio_transcribe_queue:
+            ALLOW: ["sqs:SendMessage"]
 
     process_audio:
       path: "{PROJECT_ROOT}/src/functions/process_audio"
@@ -65,6 +70,9 @@ lambda:
       env_vars:
         dynamo:
           TRANSCRIPTS_TABLE: "sedric_analysis_requests"
+        s3:
+          TRANSCRIPTS_BUCKET: "sedric-audio-analysis-service"
+      allow_transcribe_job: True
       policies:
         dynamo:
           sedric_analysis_requests:
@@ -81,6 +89,10 @@ lambda:
                 "dynamodb:Query",
                 "dynamodb:UpdateItem",
               ]
+        s3:
+          sedric-audio-analysis-service:
+            ALLOW: ['s3:*Object', 's3:CreateMultipartUpload']
+
     analyse_transcript:
       path: "{PROJECT_ROOT}/src/functions/analyse_transcript"
       timeout: 300

@@ -1,3 +1,6 @@
+import os
+from urllib.parse import urlparse
+
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.logging import correlation_paths
@@ -17,7 +20,9 @@ def post_submit_request() -> dict[str, any]:
     :rtype: dict
     """
     request_data: CheckSentencesRequest = CheckSentencesRequest(**app.current_event.json_body)
-    if not any([request_data.audio_url.endswith('wav'), request_data.audio_url.endswith('mp3')]):
+    path = urlparse(request_data.audio_url).path
+    ext = os.path.splitext(path)[1]
+    if ext not in ['.wav', '.mp3']:
         return {
             'body': {
                 'message': 'Error! Only mp3 or wav files are supported.'
@@ -26,7 +31,7 @@ def post_submit_request() -> dict[str, any]:
         }
     helper: AnalysisHelper = AnalysisHelper()
     logger.info('Creating new transcript analysis request.')
-    request_id: str = helper.save_transcript_analysis_request(request_data.audio_url, request_data.sentences)
+    request_id: str = helper.save_transcript_analysis_request(request_data.audio_url, request_data.sentences, ext)
     logger.info('Successfully created new analysis request, scheduling processing task.')
     helper.register_transcribe_task(request_id)
     logger.info('Successfully registered transcribe task.')

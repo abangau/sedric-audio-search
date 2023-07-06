@@ -2,10 +2,10 @@ import datetime
 import os
 from uuid import uuid4
 
-from common.models.sentence import Sentence
-from common.models.transcript import Transcript
-from common.services.sqs_service import SQSService
-from common.services.transcript_storage_service import TranscriptStorageService
+from models.sentence import Sentence
+from models.transcript import Transcript, FileType
+from services.sqs_service import SQSService
+from services.transcript_storage_service import TranscriptStorageService
 
 
 class AnalysisHelper(object):
@@ -17,13 +17,15 @@ class AnalysisHelper(object):
         self.sqs_service: SQSService = SQSService()
         self.audio_process_queue: str = os.environ.get('AUDIO_TRANSCRIBE_QUEUE_URL')
 
-    def save_transcript_analysis_request(self, file_url: str, sentences: list[str]) -> str:
+    def save_transcript_analysis_request(self, file_url: str, sentences: list[str], extension: str) -> str:
         """Generates a new Transcript object and stores it.
 
         :param file_url: The URL path for the wav/mp3.
         :type file_url: str
         :param sentences: A list of sentences to be used for searching the transcript.
         :type sentences: List
+        :param extension: The extension of the file.
+        :type extension: str
         :return: The request_id used to get status and results.
         :rtype: str
         """
@@ -35,6 +37,7 @@ class AnalysisHelper(object):
                     plain_text=text
                 ) for text in sentences
             ],
+            file_type=FileType(extension[1:]),
             created=datetime.datetime.now(),
             updated=datetime.datetime.now()
         )

@@ -1,5 +1,5 @@
-from common.models.transcript import Transcript
-from common.services.providers.dynamodb_provider import DynamoDBProvider
+from models.transcript import Transcript
+from services.providers.dynamodb_provider import DynamoDBProvider
 
 
 class TranscriptStorageService(object):

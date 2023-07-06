@@ -1,7 +1,7 @@
-from common.models.transcript import Transcript, TranscriptStatus
-from common.services.s3_service import S3Service
-from common.services.transcribe_service import TranscribeService
-from common.services.transcript_storage_service import TranscriptStorageService
+from models.transcript import Transcript, TranscriptStatus
+from services.s3_service import S3Service
+from services.transcribe_service import TranscribeService
+from services.transcript_storage_service import TranscriptStorageService
 
 
 class AudioProcessingHelper(object):

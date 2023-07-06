@@ -8,7 +8,8 @@ from aws_cdk import (
     aws_sqs as sqs,
     aws_s3 as s3,
     aws_dynamodb as ddb,
-    aws_lambda
+    aws_lambda,
+    aws_lambda_event_sources
 )
 from constructs import Construct
 from iac.utils import add_tags
@@ -95,13 +96,16 @@ class CallAnalysisStack(Stack):
 
         return stack_layers
 
-    def _get_resource_reference(self, resource_name, resource_type, get_arn=True):
+    def _get_resource_reference(self, resource_name, resource_type, get_arn=True, add_wildcard=True):
         if resource_type == 'dynamo':
-            return self.dbs[resource_name].table_arn if get_arn else self.dbs[resource_name].table_name
+            return [self.dbs[resource_name].table_arn if get_arn else self.dbs[resource_name].table_name]
         elif resource_type == 's3':
-            return self.buckets[resource_name].bucket_arn if get_arn else self.buckets[resource_name].bucket_name
+            bucket_ref = self.buckets[resource_name].bucket_arn if get_arn else self.buckets[resource_name].bucket_name
+            if add_wildcard:
+                return [bucket_ref, f'{bucket_ref}/*']
+            return [bucket_ref]
         elif resource_type == 'sqs':
-            return self.queues[resource_name].queue_arn if get_arn else self.queues[resource_name].queue_name
+            return [self.queues[resource_name].queue_arn if get_arn else self.queues[resource_name].queue_name]
 
     def _create_lambda_functions(self, functions: dict) -> Mapping[str, aws_lambda.Function]:
         lambdas: Mapping[str, aws_lambda.Function] = {}
@@ -115,7 +119,7 @@ class CallAnalysisStack(Stack):
                         env_vars[env_var_name] = self.dbs.get(env_var_table_reference).table_name
                 elif obj_type == 's3':
                     for env_var_name, env_var_bucket_reference in env_vars_config.items():
-                        env_vars[env_var_name] = self.buckets.get(env_var_bucket_reference).bucket_arn
+                        env_vars[env_var_name] = self.buckets.get(env_var_bucket_reference).bucket_name
                 elif obj_type == 'sqs':
                     for env_var_name, env_var_queue_reference in env_vars_config.items():
                         env_vars[env_var_name] = self.queues.get(env_var_queue_reference).queue_name
@@ -139,14 +143,36 @@ class CallAnalysisStack(Stack):
             )
             add_tags(new_function)
 
+            # Function triggers next
+            for _, triggerConfig in config.get('triggers', {}).items():
+                trigger_type = triggerConfig.get('type')
+                trigger_construct = triggerConfig.get('ref')
+
+                if trigger_type == 'sqs':
+                    new_function.add_event_source(
+                        aws_lambda_event_sources.SqsEventSource(
+                            self.queues[trigger_construct],
+                            batch_size=5
+                        )
+                    )
+
             # Finally, policies
+            if config.get('allow_transcribe_job'):
+                new_function.add_to_role_policy(
+                    iam.PolicyStatement(
+                        effect=iam.Effect(effect),
+                        resources=['*'],  # ideally add a proper wildcard here at some point
+                        actions=['transcribe:StartTranscriptionJob']
+                    )
+                )
+
             for resource_type, policy_config in config.get('policies', {}).items():
                 for resource_reference, effect_groups in policy_config.items():
                     for effect, actions in effect_groups.items():
                         new_function.add_to_role_policy(
                             iam.PolicyStatement(
                                 effect=iam.Effect(effect),
-                                resources=[self._get_resource_reference(resource_reference, resource_type, True)],
+                                resources=self._get_resource_reference(resource_reference, resource_type, True),
                                 actions=actions
                             )
                         )
