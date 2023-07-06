@@ -1,5 +1,6 @@
 import boto3
 
+from datetime import datetime, timedelta
 import json
 import urllib3
 
@@ -26,6 +27,25 @@ class S3Service(object):
             ),
             bucket,
             s3_key
+        )
+
+    def create_presigned_url(self, bucket: str, s3_key: str) -> dict:
+        """Creates a presigned url for the given key. Expires in 15 minutes.
+
+        :param bucket: The bucket to create the presigned url for.
+        :type bucket: str
+        :param s3_key: The key of the object to generate the rul for.
+        :type s3_key: str
+        :return: A dict with two keys: url and expires_at
+        :rtype: dict
+        """
+        return self.client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket,
+                'Key': s3_key
+            },
+            ExpiresIn=15 * 60
         )
 
     def read_json_file(self, bucket: str, s3_key: str) -> dict:

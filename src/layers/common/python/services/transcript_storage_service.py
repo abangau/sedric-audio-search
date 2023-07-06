@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from models.transcript import Transcript
 from services.providers.dynamodb_provider import DynamoDBProvider
 
@@ -18,6 +20,7 @@ class TranscriptStorageService(object):
         """
         Updates dynamodb representation of the model
         """
+        transcript.updated = datetime.now()
         self.dynamo_client.table.put_item(Item=transcript.as_dict())
 
     def get_transcript(self, request_id: str) -> Transcript:
@@ -28,9 +31,9 @@ class TranscriptStorageService(object):
         :return: The transcript for the given request_id
         :rtype: Transcript
         """
-        item: dict = self.dynamo_client.table.get_item(
+        response = self.dynamo_client.table.get_item(
             Key={
                 'request_id': request_id
             }
-        )['Item']
-        return Transcript(**item)
+        )
+        return Transcript(**response['Item']) if response.get('Item') else None

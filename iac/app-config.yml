@@ -13,7 +13,6 @@ dynamo:
 api_gateways:
   sedric_api:
     description: "Api for submitting audio analysis requests and retrieving results."
-    path: "/api"
     resources:
       transcripts_api:
         path: "{proxy+}"
@@ -38,6 +37,8 @@ lambda:
           TRANSCRIPTS_TABLE: "sedric_analysis_requests"
         sqs:
           AUDIO_TRANSCRIBE_QUEUE_URL: "audio_transcribe_queue"
+        s3:
+          TRANSCRIPTS_BUCKET: "sedric-audio-analysis-service"
       policies:
         dynamo:
           sedric_analysis_requests:
@@ -57,6 +58,9 @@ lambda:
         sqs:
           audio_transcribe_queue:
             ALLOW: ["sqs:SendMessage"]
+        s3:
+          sedric-audio-analysis-service:
+            ALLOW: ["s3:GetObject"]
 
     process_audio:
       path: "{PROJECT_ROOT}/src/functions/process_audio"
@@ -101,12 +105,14 @@ lambda:
       triggers:
         transcript_pushed:
           type: s3
-          event: "put"
           ref: "sedric-audio-analysis-service"
-          prefix: "transcripts"
+          prefix: "transcripts/"
+          suffix: ".json"
       env_vars:
         dynamo:
           TRANSCRIPTS_TABLE: "sedric_analysis_requests"
+        s3:
+          TRANSCRIPTS_BUCKET: "sedric-audio-analysis-service"
       policies:
         dynamo:
           sedric_analysis_requests:
@@ -123,3 +129,6 @@ lambda:
                 "dynamodb:Query",
                 "dynamodb:UpdateItem",
               ]
+        s3:
+          sedric-audio-analysis-service:
+            ALLOW: ['s3:GetObject']

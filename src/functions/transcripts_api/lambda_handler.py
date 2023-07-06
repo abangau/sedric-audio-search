@@ -24,11 +24,8 @@ def post_submit_request() -> dict[str, any]:
     ext = os.path.splitext(path)[1]
     if ext not in ['.wav', '.mp3']:
         return {
-            'body': {
-                'message': 'Error! Only mp3 or wav files are supported.'
-            },
-            'status_code': 400
-        }
+            'message': 'Error! Only mp3 or wav files are supported.'
+        }, 400
     helper: AnalysisHelper = AnalysisHelper()
     logger.info('Creating new transcript analysis request.')
     request_id: str = helper.save_transcript_analysis_request(request_data.audio_url, request_data.sentences, ext)
@@ -45,12 +42,34 @@ def post_submit_request() -> dict[str, any]:
 
 @app.get('/get_results')
 def get_results_request() -> dict[str, any]:
-    """TODO: Implement the get_results route
+    """Gets the transcript status and results, if they exist.
 
-    :return: _description_
-    :rtype: dict[str, any]
+    :return: Response which contains a transcript status and results, if any.
+    :rtype: dict
     """
-    pass
+    request_id: str = app.current_event.query_string_parameters.get('request_id')
+    helper: AnalysisHelper = AnalysisHelper()
+    transcript = helper.get_transcript_metadata(request_id)
+
+    if not transcript:
+        return {
+            'message': 'not found'
+        }, 404
+
+    return {
+        "id": transcript.request_id.hex,
+        "request_id": transcript.request_id.hex,
+        "audio_url": transcript.audio_url,
+        "transcript_url": (
+            helper.generate_presigned_url(transcript.transcript_path)
+            if transcript.transcript_path
+            else None
+        ),
+        "status": transcript.status.value,
+        "sentences": [
+            sentence.as_dict() for sentence in transcript.sentences
+        ]
+    }
 
 @logger.inject_lambda_context(correlation_id_path=correlation_paths.API_GATEWAY_REST)
 def lambda_handler(event: dict[str, any], context: LambdaContext) -> dict[str, any]:

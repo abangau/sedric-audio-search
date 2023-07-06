@@ -12,9 +12,9 @@ logger: Logger = Logger(service='process_audio')
 
 @logger.inject_lambda_context(log_event=True)
 def lambda_handler(event: dict, context: LambdaContext):
-    eventObj = SQSEvent(event)
+    event_obj = SQSEvent(event)
     file_processing_helper = AudioProcessingHelper(os.environ.get('TRANSCRIPTS_TABLE'), os.environ.get('TRANSCRIPTS_BUCKET'))
-    for record in eventObj.records:
+    for record in event_obj.records:
         # This lambda could process multiple files at once.
         request_id = record.json_body.get('request_id')
 

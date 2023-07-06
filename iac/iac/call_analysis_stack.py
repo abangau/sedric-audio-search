@@ -4,9 +4,11 @@ from typing import Mapping
 from aws_cdk import (
     Duration,
     Stack,
+    aws_apigateway as gw,
     aws_iam as iam,
     aws_sqs as sqs,
     aws_s3 as s3,
+    aws_s3_notifications as s3n,
     aws_dynamodb as ddb,
     aws_lambda,
     aws_lambda_event_sources
@@ -30,6 +32,13 @@ class CallAnalysisStack(Stack):
         self.layers = self._create_lambda_layers(app_config.get('lambda', {}).get('layers', {}))
         self.functions = self._create_lambda_functions(app_config.get('lambda', {}).get('functions', {}))
 
+        # Rest API last
+        self.api_gateways = self._create_api_gateways(app_config.get('api_gateways', {}))
+
+        # For compliance with policies of account I am using
+        for construct in Stack.of(self).node.find_all():
+            add_tags(construct)
+
 
     def _create_queues(self, queues: dict) -> Mapping[str, sqs.Queue]:
         queues_created: Mapping[str, sqs.Queue] = {}
@@ -38,7 +47,6 @@ class CallAnalysisStack(Stack):
                 self, queue_name,
                 visibility_timeout=Duration.seconds(queue_config.get('visibility_timeout', 300))
             )
-            add_tags(queue)
             queues_created[queue_name] = queue
 
         return queues_created
@@ -50,7 +58,6 @@ class CallAnalysisStack(Stack):
                 self, bucket_name,
                 bucket_name=bucket_name,
             )
-            add_tags(bucket)
             buckets_created[bucket_name] = bucket
 
         return buckets_created
@@ -64,7 +71,6 @@ class CallAnalysisStack(Stack):
                 read_capacity=table_config.get('read_capacity', 5),
                 write_capacity=table_config.get('write_capacity', 3),
             )
-            add_tags(db)
             dbs_created[table_name] = db
 
         return dbs_created
@@ -85,7 +91,6 @@ class CallAnalysisStack(Stack):
                     compatible_runtimes=[aws_lambda.Runtime.PYTHON_3_10],
                     compatible_architectures=[aws_lambda.Architecture.ARM_64]
                 )
-                add_tags(new_layer)
             elif 'arn' in layer_config:
                 new_layer = aws_lambda.LayerVersion.from_layer_version_arn(
                         self,
@@ -106,6 +111,28 @@ class CallAnalysisStack(Stack):
             return [bucket_ref]
         elif resource_type == 'sqs':
             return [self.queues[resource_name].queue_arn if get_arn else self.queues[resource_name].queue_name]
+
+    def _create_api_gateways(self, api_gateways: dict) -> Mapping[str, gw.RestApi]:
+        gateways: Mapping[str, gw.RestApi] = {}
+        for name, config in api_gateways.items():
+            api: gw.RestApi = gw.RestApi(
+                self,
+                name,
+                description=config.get('description'),
+                cloud_watch_role=False
+            )
+            for _, resource_config in config.get('resources', {}).items():
+                resource = api.root.add_resource(
+                    resource_config.get('path')
+                )
+                for method in resource_config.get('methods', []):
+                    resource.add_method(
+                        method, gw.LambdaIntegration(
+                            self.functions[resource_config.get('function')]
+                        )
+                    )
+            gateways[name] = api
+        return gateways
 
     def _create_lambda_functions(self, functions: dict) -> Mapping[str, aws_lambda.Function]:
         lambdas: Mapping[str, aws_lambda.Function] = {}
@@ -141,12 +168,11 @@ class CallAnalysisStack(Stack):
                 reserved_concurrent_executions=config.get('concurrency'),
                 architecture=aws_lambda.Architecture.ARM_64
             )
-            add_tags(new_function)
 
             # Function triggers next
-            for _, triggerConfig in config.get('triggers', {}).items():
-                trigger_type = triggerConfig.get('type')
-                trigger_construct = triggerConfig.get('ref')
+            for _, trigger_config in config.get('triggers', {}).items():
+                trigger_type = trigger_config.get('type')
+                trigger_construct = trigger_config.get('ref')
 
                 if trigger_type == 'sqs':
                     new_function.add_event_source(
@@ -154,6 +180,16 @@ class CallAnalysisStack(Stack):
                             self.queues[trigger_construct],
                             batch_size=5
                         )
+                    )
+                elif trigger_type == 's3':
+                    filters_handler =  s3.NotificationKeyFilter(
+                        prefix=trigger_config.get('prefix', ''),
+                        suffix=trigger_config.get('suffix', '')
+                    )
+                    self.buckets[trigger_construct].add_event_notification(
+                        s3.EventType.OBJECT_CREATED,
+                        s3n.LambdaDestination(new_function),
+                        filters_handler
                     )
 
             # Finally, policies

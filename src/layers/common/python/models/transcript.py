@@ -31,6 +31,7 @@ class Transcript:
     updated: datetime
     file_type: FileType
     sentences: List[Sentence]
+    transcript_path: str = None
     status: str = TranscriptStatus.PENDING
 
     def __post_init__(self) -> None:
@@ -40,6 +41,7 @@ class Transcript:
         self.updated = datetime.fromisoformat(self.updated) if isinstance(self.updated, str) else self.updated
         self.request_id = UUID(self.request_id) if isinstance(self.request_id, str) else self.request_id
         self.file_type = FileType(self.file_type) if isinstance(self.file_type, str) else self.file_type
+        self.status = TranscriptStatus(self.status) if isinstance(self.status, str) else self.status
         self.sentences = [
             Sentence(**s) if not isinstance(s, Sentence) else s
             for s in self.sentences
@@ -58,7 +60,8 @@ class Transcript:
             "updated": self.updated.isoformat(),
             "file_type": self.file_type.value,
             "status": self.status.value,
-            "sentences": [s.as_dict() for s in self.sentences]
+            "sentences": [s.as_dict() for s in self.sentences],
+            "transcript_path": self.transcript_path
         }
 
     @property
