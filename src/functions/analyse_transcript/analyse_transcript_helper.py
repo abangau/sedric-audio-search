@@ -63,6 +63,9 @@ class AnalyseTrascriptHelper(object):
                 if sentence_words[sentence_idx][current_sentence_counter].lower() == word_in_transcript.lower():
                     # We found a correct word, increase counter to find the next
                     words_found_counters[sentence_idx] += 1
+                else:
+                    # Reset counter as words are not matching
+                    words_found_counters[sentence_idx] = 0
 
                 if len(sentence_words[sentence_idx]) == words_found_counters[sentence_idx]:
                     # We found all the words that are in the sentence, we need to set the sentence as found
