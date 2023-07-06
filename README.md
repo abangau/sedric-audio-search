@@ -1,5 +1,5 @@
 
-# Take-home submission from Alexandru Bangau (Cloudgeometry) to sedric.ai
+## Take-home submission from Alexandru Bangau (Cloudgeometry) to sedric.ai
 
 The project was implementing using serverless services (aws lambda), and achieves scalability through the asynchronous operation of the pipeline.
 
